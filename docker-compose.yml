@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   zookeeper:
     image: wurstmeister/zookeeper
@@ -62,10 +60,6 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: fraud_db
 
-volumes:
-  postgres_data:
-
-
   web-app:
     build: .
     command: python app/web_app.py
@@ -81,3 +75,6 @@ volumes:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
       POSTGRES_DB: fraud_db
+
+volumes:
+  postgres_data:
