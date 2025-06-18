@@ -41,7 +41,7 @@ htmlcov/
 docker-compose.override.yml
 
 # Исключаем конкретные файлы, если необходимо
-# model/catboost_model.cbm  # Убираем из игнора, так как он будет загружен через LFS
+model/catboost_model.cbm  # Возврашаем, так как лимит LFS исчерпан
 /catboost_info
 
 # Папки с датасетами
@@ -54,4 +54,4 @@ output/feature_importance.json
 output/predictions_distribution.png
 *.csvvenv/
 .venv/
-train.csv
+*.csv
