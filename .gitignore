@@ -55,3 +55,4 @@ output/predictions_distribution.png
 *.csvvenv/
 .venv/
 *.csv
+model/catboost_model.cbm
