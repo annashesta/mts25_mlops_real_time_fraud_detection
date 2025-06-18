@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fraud Detection Results</title>
+</head>
+<body>
+    <h1>10 Последних Транзакций с Флагом Мошенничества</h1>
+    <table border="1">
+        <tr>
+            <th>Transaction ID</th>
+            <th>Score</th>
+            <th>Fraud Flag</th>
+        </tr>
+        {% for transaction in transactions %}
+        <tr>
+            <td>{{ transaction[0] }}</td>
+            <td>{{ transaction[1] }}</td>
+            <td>{{ transaction[2] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    <h1>Гистограмма Распределения Скоров Последних 100 Транзакций</h1>
+    <a href="/plot"><button>Посмотреть результаты</button></a>
+</body>
+</html>

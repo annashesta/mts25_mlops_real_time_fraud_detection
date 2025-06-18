@@ -1,0 +1,10 @@
+pandas
+numpy
+scikit-learn
+catboost
+geopy
+watchdog
+confluent-kafka
+psycopg2-binary
+matplotlib
+seaborn
