@@ -41,7 +41,7 @@ htmlcov/
 docker-compose.override.yml
 
 # Исключаем конкретные файлы, если необходимо
-model/catboost_model.cbm  # Возврашаем, так как лимит LFS исчерпан
+catboost_model.cbm  # Возврашаем, так как лимит LFS исчерпан
 /catboost_info
 
 # Папки с датасетами
