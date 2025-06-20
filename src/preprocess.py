@@ -1,4 +1,5 @@
 """Модуль для предобработки данных перед подачей в модель."""
+
 import logging
 from typing import List
 import pandas as pd
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # Глобальные переменные (будут инициализированы в load_train_data)
 categorical_cols: List[str] = []
-continuous_cols: List[str] = ["amount", "population_city"]
+continuous_cols: List[str] = ["amount"]
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -46,28 +47,29 @@ def add_distance_features(df: pd.DataFrame) -> pd.DataFrame:
     def calc_distance(row):
         try:
             return great_circle(
-                (row["lat"], row["lon"]),
-                (row["merchant_lat"], row["merchant_lon"])
+                (row["client_lat"], row["client_lon"]),
+                (row["seller_lat"], row["seller_lon"])
             ).km
         except Exception as e:
             logger.warning(f"Ошибка расчета расстояния: {e}")
             return np.nan
-
     df["distance"] = df.apply(calc_distance, axis=1)
-    return df.drop(columns=["lat", "lon", "merchant_lat", "merchant_lon"], errors="ignore")
+    return df.drop(columns=["client_lat", "client_lon", "seller_lat", "seller_lon"], errors="ignore")
 
-def run_preproc(input_df: pd.DataFrame) -> pd.DataFrame:
+def run_preproc(input_data: dict) -> pd.DataFrame:
     """
     Выполняет полный препроцессинг данных.
     Args:
-        input_df (pd.DataFrame): Входной DataFrame для предобработки.
+        input_data (dict): Входные данные для предобработки.
     Returns:
         pd.DataFrame: Предобработанный DataFrame.
     """
     logger.info("Начало препроцессинга данных...")
+    # Преобразование входных данных в DataFrame
+    input_df = pd.DataFrame([input_data])
     # Проверка наличия необходимых колонок
     required_cols = (
-        ["transaction_time", "lat", "lon", "merchant_lat", "merchant_lon"] +
+        ["transaction_time", "client_lat", "client_lon", "seller_lat", "seller_lon"] +
         categorical_cols +
         continuous_cols
     )
@@ -91,29 +93,3 @@ def run_preproc(input_df: pd.DataFrame) -> pd.DataFrame:
     logger.info("Логарифмическое преобразование выполнено.")
     logger.info("Препроцессинг завершен.")
     return input_df
-
-
-
-def load_train_data(train_data_path: str) -> pd.DataFrame:
-    """
-    Загружает и предобрабатывает обучающий датасет.
-    Args:
-        train_data_path (str): Путь к обучающему датасету.
-    Returns:
-        pd.DataFrame: Предобработанный обучающий датасет.
-    """
-    global categorical_cols
-
-    logger.info("Загрузка обучающих данных...")
-    # Определение типов колонок
-    drop_cols = ["name_1", "name_2", "street", "post_code"]
-    categorical_cols = ["gender", "merch", "cat_id", "one_city", "us_state", "jobs"]
-
-    # Загрузка обучающего датасета
-    train = pd.read_csv(train_data_path).drop(columns=drop_cols, errors="ignore")
-    logger.info(f"Исходные данные загружены. Размер: {train.shape}")
-
-    # Препроцессинг данных
-    train = run_preproc(train)
-    logger.info(f"Обработка обучающих данных завершена. Размер: {train.shape}")
-    return train

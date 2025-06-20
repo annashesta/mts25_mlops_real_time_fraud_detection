@@ -10,33 +10,34 @@
 ## Архитектура решения
 ```
 ml_service/
-├── input/                     # Директория для входных файлов (test.csv)
-├── output/                    # Директория для выходных файлов
 ├── app/
-│   ├── app.py                 # Основной скрипт приложения (адаптированный для Kafka)
-│   ├── score_loader.py        # Сервис для загрузки результатов в PostgreSQL
-│   └── web_app.py             # Веб-приложение для отображения результатов
+│   ├── app.py               # Основной скрипт приложения (потребитель Kafka)
+│   ├── db_service.py        # Сервис для работы с PostgreSQL
+│   ├── ui/                  # Новая директория для UI
+│   │   ├── __init__.py      # Пустой файл для создания пакета
+│   │   ├── app.py           # Основной файл Flask-приложения
+│   │   └── templates/       # Шаблоны HTML
+│   │       ├── index.html
+│   │       └── results.html
 ├── src/
-│   ├── preprocess.py          # Препроцессинг данных
-│   ├── scorer.py              # Инференс модели
-│   ├── feature_importance.py  # Выгрузка важности признаков
-│   └── plot_predictions.py    # Построение графика плотности предсказаний
+│   ├── preprocess.py        # Препроцессинг данных
+│   ├── scorer.py            # Инференс модели
+│   └── consumer.py          # Потребитель Kafka
 ├── model/
-│   ├── catboost_model.cbm     # Сохраненная модель CatBoost
-│   ├── threshold.json         # Порог классификации
-│   └── categorical_features.json  # Список категориальных признаков
-├── train_data/
-│   └── train.csv              # Тренировочный датасет
-├── templates/
-│   └── index.html             # Шаблон для веб-приложения
-├── config.yaml                # Конфигурационный файл
-├── requirements.txt           # Зависимости Python
-├── Dockerfile                 # Файл для сборки Docker-образа
-├── .dockerignore              # Файл для исключения ненужных файлов
-├── train_model.py             # Файл jupyter notebook с кодом обучения модели
-│                              # для возможных изменений
-├── docker-compose.yml         # Определение всех сервисов и их зависимостей
-└── README.md                  # Инструкция по использованию сервиса
+│   ├── catboost_model.cbm
+│   ├── threshold.json
+│   └── categorical_features.json
+├── config/
+│   ├── kafka_config.yaml    # Конфигурационный файл для Kafka
+│   └── postgres_config.yaml # Конфигурационный файл для PostgreSQL
+├── data/
+│   ├── train_data.csv       # Тренировочный датасет
+│   └── test_data.csv        # Тестовые данные в формате CSV (для тестирования)
+├── .gitignore
+├── requirements.txt
+├── docker-compose.yml
+├── Dockerfile
+└── README.md
 ```
 
 ## Ключевые особенности
@@ -107,3 +108,72 @@ docker-compose up --build
 ```
 http://localhost:5000
 ```
+
+
+
+---
+
+---
+
+# Сервис для автоматического обнаружения мошеннических транзакций
+
+## Архитектура решения
+
+Сервис для автоматического обнаружения мошеннических транзакций в режиме реального времени. Обрабатывает сообщения из топика Kafka с использованием предобученной модели CatBoost. Результаты сохраняются в PostgreSQL.
+
+## Компоненты
+
+1. **Kafka Producer**: Отправляет сообщения в формате JSON в топик Kafka.
+2. **Consumer**: Читает сообщения из Kafka, выполняет препроцессинг данных и инференс модели, отправляет результаты в другой топик Kafka и сохраняет их в PostgreSQL.
+3. **DB Service**: Работает с PostgreSQL для сохранения результатов и запросов.
+4. **UI**: Flask-приложение для отображения результатов из PostgreSQL.
+
+## Установка и запуск
+
+1. **Клонируйте репозиторий:**
+
+    ```bash
+    git clone <your-repo-url>
+    cd ml_service
+    ```
+
+2. **Запустите сервисы с помощью docker-compose:**
+
+    ```bash
+    docker-compose up --build
+    ```
+
+3. **Отправьте тестовые данные в Kafka:**
+
+    ```bash
+    # Пример отправки данных в Kafka
+    kafka-console-producer.sh --broker-list localhost:9092 --topic transactions < data/test_data.csv
+    ```
+
+4. **Откройте UI для просмотра результатов:**
+
+    Откройте браузер и перейдите по адресу [http://localhost:8080](http://localhost:8080).
+
+## Дополнительные инструкции
+
+- **Остановка сервисов:**
+
+    ```bash
+    docker-compose down
+    ```
+
+- **Просмотр логов:**
+
+    ```bash
+    docker-compose logs -f
+    ```
+
+- **Отправка тестовых данных в Kafka:**
+
+    ```bash
+    # Преобразование CSV в JSON
+    python csv_to_json.py
+
+    # Отправка данных в Kafka
+    kafka-console-producer.sh --broker-list localhost:9092 --topic transactions < input/test_data_lines.json
+    ```

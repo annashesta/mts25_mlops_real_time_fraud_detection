@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Результаты</title>
+</head>
+<body>
+    <h1>Последние фродовые транзакции</h1>
+    <table border="1">
+        <tr>
+            <th>ID</th>
+            <th>Score</th>
+            <th>Время</th>
+        </tr>
+        {% for trans in transactions %}
+        <tr>
+            <td>{{ trans[0] }}</td>
+            <td>{{ "%.4f"|format(trans[1]) }}</td>
+            <td>{{ trans[2] }}</td>
+        </tr>
+        {% endfor %}
+    </table>
+    
+    <h2>Распределение скоров</h2>
+    <img src="data:image/png;base64,{{ plot_url }}" alt="Распределение скоров">
+    
+    <p><a href="/">На главную</a></p>
+</body>
+</html>

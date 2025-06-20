@@ -1,29 +1,34 @@
-# Этап 2: Основной образ
-FROM python:3.12-slim
+# Базовый образ
+FROM python:3.10-slim
+
+# Установка рабочей директории
 WORKDIR /app
 
-# Копируем большие файлы напрямую из локальной директории
+# Создание структуры директорий
+RUN mkdir -p /app/model /app/train_data /app/input /app/output /app/logs
+
+# Установка зависимостей
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm -rf /root/.cache
+
+# Копирование артефактов модели (локальные файлы)
 COPY model/catboost_model.cbm /app/model/
 COPY model/threshold.json /app/model/
 COPY model/categorical_features.json /app/model/
 
-# Копируем остальные файлы напрямую
-COPY requirements.txt .
-COPY config.yaml .
+# Копирование остальных файлов
+COPY config/ /app/config/
 COPY src/ /app/src/
 COPY app/ /app/app/
-COPY templates/ /app/templates/
-
-# Установка зависимостей
-RUN pip install --no-cache-dir -r requirements.txt && \
-    rm -rf /root/.cache
 
 # Настройка прав
-RUN mkdir -p /app/input /app/output /app/logs && \
+RUN mkdir -p /app/logs && \
     useradd -m appuser && \
     chown -R appuser:appuser /app && \
     chmod -R 755 /app/logs
 
 USER appuser
 
-CMD ["sh", "-c", "exec \"$@\"", "$0"]
+# Команда запуска
+CMD ["python", "app/app.py"]

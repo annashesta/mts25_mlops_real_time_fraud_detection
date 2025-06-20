@@ -56,3 +56,4 @@ output/predictions_distribution.png
 .venv/
 *.csv
 model/catboost_model.cbm
+.mypy_cache

@@ -1,0 +1,4 @@
+
+kafka_bootstrap_servers: "kafka:9092"
+input_topic: "transactions"
+output_topic: "scores"
