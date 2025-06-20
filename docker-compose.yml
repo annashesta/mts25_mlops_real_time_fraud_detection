@@ -12,6 +12,7 @@ services:
       retries: 5
     networks:
       - app-tier
+
   kafka:
     image: bitnami/kafka:3.5
     environment:
@@ -27,20 +28,20 @@ services:
       zookeeper:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "kafka-topics.sh", "--bootstrap-server", "localhost:9092", "--list"]
+      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
       interval: 10s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 40s
     networks:
       - app-tier
-    volumes:
-      - ./input:/app/input
+
   postgres:
     image: postgres:13
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: fraud_detection
+      POSTGRES_DB: fraud_db
     ports:
       - "5432:5432"
     volumes:
@@ -52,10 +53,13 @@ services:
       retries: 5
     networks:
       - app-tier
+
   fraud-detector:
     build: .
     depends_on:
       kafka:
+        condition: service_healthy
+      postgres:
         condition: service_healthy
     environment:
       - PYTHONUNBUFFERED=1
@@ -63,9 +67,10 @@ services:
       - ./logs:/app/logs
       - ./model:/app/model
     restart: unless-stopped
-    command: python app/app.py
+    command: bash -c "sleep 10 && python /app/app/app.py"
     networks:
       - app-tier
+
   db-service:
     build: .
     depends_on:
@@ -78,9 +83,10 @@ services:
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
-    command: python app/db_service.py
+    command: bash -c "sleep 15 && python /app/app/db_service.py"
     networks:
       - app-tier
+
   ui:
     build: .
     ports:
@@ -93,11 +99,13 @@ services:
     volumes:
       - ./logs:/app/logs
     restart: unless-stopped
-    command: python app/ui/app.py
+    command: bash -c "sleep 20 && python /app/app/ui/app.py"
     networks:
       - app-tier
+
 volumes:
   postgres_data:
+
 networks:
   app-tier:
     driver: bridge

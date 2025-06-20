@@ -22,6 +22,9 @@ COPY config/ /app/config/
 COPY src/ /app/src/
 COPY app/ /app/app/
 
+# Настройка переменной окружения PYTHONPATH
+ENV PYTHONPATH=/app
+
 # Настройка прав
 RUN mkdir -p /app/logs && \
     useradd -m appuser && \

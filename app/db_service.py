@@ -2,10 +2,12 @@
 
 import logging
 import json
+import time
 import psycopg2
-from confluent_kafka import Consumer
+from confluent_kafka import Consumer, KafkaException
+from config.kafka_config import KAFKA_BOOTSTRAP_SERVERS, OUTPUT_TOPIC
+from config.postgres_config import POSTGRES_CONFIG
 
-# Настройка логгера
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -16,25 +18,64 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+def wait_for_services():
+    max_retries = 10
+    retry_count = 0
+    
+    # Wait for PostgreSQL
+    while retry_count < max_retries:
+        try:
+            conn = psycopg2.connect(**POSTGRES_CONFIG)
+            conn.close()
+            break
+        except Exception as e:
+            logger.warning(f"Waiting for PostgreSQL... Attempt {retry_count + 1}/{max_retries}")
+            time.sleep(5)
+            retry_count += 1
+    else:
+        raise Exception("Failed to connect to PostgreSQL after multiple attempts")
+    
+    # Wait for Kafka
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            consumer = Consumer({
+                'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
+                'group.id': 'db-service-group',
+                'auto.offset.reset': 'earliest'
+            })
+            consumer.close()
+            break
+        except Exception as e:
+            logger.warning(f"Waiting for Kafka... Attempt {retry_count + 1}/{max_retries}")
+            time.sleep(5)
+            retry_count += 1
+    else:
+        raise Exception("Failed to connect to Kafka after multiple attempts")
+
 class DBService:
     def __init__(self, config):
-        self.conn = psycopg2.connect(
-            dbname=config['database'],
-            user=config['user'],
-            password=config['password'],
-            host=config['host'],
-            port=config['port']
-        )
+        self.config = config
+        self.conn = self._connect_to_db()
         self._init_db()
-        self.consumer = Consumer({
-            'bootstrap.servers': 'kafka:9092',
-            'group.id': 'db_service_group',
-            'auto.offset.reset': 'earliest'
-        })
-        self.consumer.subscribe(['scores'])
+        
+    def _connect_to_db(self):
+        max_retries = 5
+        retry_count = 0
+        
+        while retry_count < max_retries:
+            try:
+                conn = psycopg2.connect(**self.config)
+                logger.info("Connected to PostgreSQL")
+                return conn
+            except Exception as e:
+                logger.warning(f"Failed to connect to PostgreSQL (attempt {retry_count + 1}/{max_retries}): {e}")
+                time.sleep(5)
+                retry_count += 1
+        
+        raise Exception("Failed to connect to PostgreSQL after multiple attempts")
 
     def _init_db(self):
-        """Инициализация таблицы в БД."""
         with self.conn.cursor() as cur:
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS transactions (
@@ -48,7 +89,6 @@ class DBService:
         logger.info("Database initialized")
 
     def insert_result(self, result):
-        """Сохранение результата в БД."""
         try:
             with self.conn.cursor() as cur:
                 cur.execute("""
@@ -62,32 +102,51 @@ class DBService:
         except Exception as e:
             logger.error(f"Error saving transaction: {e}")
             self.conn.rollback()
+            raise
 
     def run(self):
-        """Основной цикл обработки сообщений."""
+        wait_for_services()
+        
+        consumer_conf = {
+            'bootstrap.servers': KAFKA_BOOTSTRAP_SERVERS,
+            'group.id': 'db-service-group',
+            'auto.offset.reset': 'earliest',
+            'enable.auto.commit': False
+        }
+        
+        consumer = Consumer(consumer_conf)
+        consumer.subscribe([OUTPUT_TOPIC])
+
         logger.info("Starting DB service...")
+        
         try:
             while True:
-                msg = self.consumer.poll(1.0)
+                msg = consumer.poll(1.0)
+                
                 if msg is None:
                     continue
+                    
                 if msg.error():
-                    logger.error(f"Consumer error: {msg.error()}")
-                    continue
+                    if msg.error().code() == KafkaException._PARTITION_EOF:
+                        continue
+                    else:
+                        logger.error(f"Consumer error: {msg.error()}")
+                        continue
+                
                 try:
-                    result = json.loads(msg.value())
+                    result = json.loads(msg.value().decode('utf-8'))
                     self.insert_result(result)
+                    consumer.commit(msg)
                 except Exception as e:
-                    logger.error(f"Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}", exc_info=True)
+                    
         except KeyboardInterrupt:
-            logger.info("Stopping DB service...")
+            logger.info("Shutting down...")
         finally:
-            self.consumer.close()
+            consumer.close()
             self.conn.close()
+            logger.info("DB service stopped")
 
 if __name__ == "__main__":
-    import yaml
-    with open('config/postgres_config.yaml', 'r') as f:
-        POSTGRES_CONFIG = yaml.safe_load(f)
     service = DBService(POSTGRES_CONFIG)
     service.run()
