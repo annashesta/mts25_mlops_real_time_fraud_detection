@@ -1,5 +1,4 @@
 """Модуль для выполнения предсказаний с помощью CatBoost модели."""
-
 import json
 import logging
 from typing import Dict, List
@@ -77,31 +76,6 @@ def load_categorical_features(features_path: str) -> List[str]:
         logger.error("Ошибка загрузки категориальных признаков: %s", str(e))
         raise RuntimeError(f"Ошибка загрузки категориальных признаков: {str(e)}") from e
 
-def initialize_threshold(config: Dict) -> None:
-    """
-    Инициализирует модель, порог классификации и список категориальных признаков.
-    Args:
-        config: Конфигурационный словарь.
-    """
-    global MODEL, THRESHOLD, CATEGORICAL_FEATURES
-    # Загрузка категориальных признаков
-    CATEGORICAL_FEATURES = load_categorical_features(
-        config["paths"]["categorical_features_path"]
-    )
-    # Загрузка модели
-    MODEL = load_model(
-        config["paths"]["model_path"],
-        CATEGORICAL_FEATURES
-    )
-    # Проверка загрузки модели
-    if MODEL is None:
-        raise ValueError("Модель не загружена!")
-    logger.info(f"Тип загруженной модели: {type(MODEL)}")
-    if not hasattr(MODEL, "get_feature_importance"):
-        raise AttributeError("Модель не поддерживает метод get_feature_importance")
-    # Загрузка порога
-    THRESHOLD = load_threshold(config["paths"]["threshold_path"])
-
 def make_pred(data: pd.DataFrame) -> float:
     """
     Выполняет предсказания на основе загруженной модели.
@@ -125,6 +99,36 @@ def make_pred(data: pd.DataFrame) -> float:
     logger.info("Предсказания выполнены")
     return proba[0]
 
+class Scorer:
+    def __init__(self):
+        self.model_path = "/app/model/catboost_model.cbm"
+        self.threshold_path = "/app/model/threshold.json"
+        self.categorical_features_path = "/app/model/categorical_features.json"
+        self._initialize()
 
+    def _initialize(self):
+        global MODEL, THRESHOLD, CATEGORICAL_FEATURES
+        # Загрузка категориальных признаков
+        CATEGORICAL_FEATURES = load_categorical_features(
+            self.categorical_features_path
+        )
+        # Загрузка модели
+        MODEL = load_model(
+            self.model_path,
+            CATEGORICAL_FEATURES
+        )
+        # Проверка загрузки модели
+        if MODEL is None:
+            raise ValueError("Модель не загружена!")
+        logger.info(f"Тип загруженной модели: {type(MODEL)}")
+        if not hasattr(MODEL, "get_feature_importance"):
+            raise AttributeError("Модель не поддерживает метод get_feature_importance")
+        # Загрузка порога
+        THRESHOLD = load_threshold(self.threshold_path)
 
+    def predict(self, data: pd.DataFrame) -> float:
+        return make_pred(data)
 
+    @property
+    def threshold(self):
+        return THRESHOLD

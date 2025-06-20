@@ -1,19 +1,19 @@
-# Для вызова python csv_to_json.py
-
 import csv
 import json
+import sys
 
-# Путь к входному CSV-файлу
-input_csv = "data/test_data.csv"
-# Путь к выходному JSON-файлу
-output_json = "data/test_data_lines.json"
+def csv_to_json(csv_file_path):
+    """Convert CSV file to JSON lines format"""
+    with open(csv_file_path, 'r') as csv_file:
+        csv_reader = csv.DictReader(csv_file)
+        for row in csv_reader:
+            yield json.dumps(row)
 
-# Преобразование CSV в JSON с сохранением каждой строки как отдельного JSON-объекта
-with open(input_csv, mode="r", encoding="utf-8") as csvfile:
-    reader = csv.DictReader(csvfile)
-    with open(output_json, mode="w", encoding="utf-8") as jsonfile:
-        for row in reader:
-            # Записываем каждую строку как отдельный JSON-объект
-            jsonfile.write(json.dumps(row) + "\n")
-
-print(f"CSV успешно преобразован в JSON с построчной записью: {output_json}")
+if __name__ == "__main__":
+    if len(sys.argv) != 2:
+        print("Usage: python csv_to_json.py <input_csv_file>")
+        sys.exit(1)
+    
+    input_file = sys.argv[1]
+    for json_line in csv_to_json(input_file):
+        print(json_line)

@@ -4,11 +4,10 @@ import logging
 import json
 import time
 from kafka import KafkaConsumer, KafkaProducer
-from src.preprocess import preprocess_data
-from src.scorer import Scorer
-from app.db_service import DBService
-from config.kafka_config import KAFKA_BOOTSTRAP_SERVERS, INPUT_TOPIC, OUTPUT_TOPIC
-from config.postgres_config import POSTGRES_CONFIG
+from src.preprocess import run_preproc
+from src.scorer import load_model, load_threshold, load_categorical_features
+from config import load_config  # Добавьте функцию для загрузки конфига
+import pandas as pd
 
 logging.basicConfig(
     level=logging.INFO,
@@ -17,76 +16,51 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def wait_for_kafka():
-    max_retries = 10
-    retry_count = 0
-    while retry_count < max_retries:
-        try:
-            consumer = KafkaConsumer(
-                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-                auto_offset_reset='earliest',
-                enable_auto_commit=True,
-                group_id='fraud-detector-group'
-            )
-            consumer.close()
-            return True
-        except Exception as e:
-            logger.warning(f"Waiting for Kafka... Attempt {retry_count + 1}/{max_retries}")
-            time.sleep(5)
-            retry_count += 1
-    raise Exception("Failed to connect to Kafka after multiple attempts")
+    # Ваш код
+    pass
 
 def main():
-    wait_for_kafka()
+    # Загрузка конфигов
+    kafka_config = load_config('config/kafka_config.yaml')
+    postgres_config = load_config('config/postgres_config.yaml')
     
-    scorer = Scorer()
-    db_service = DBService(POSTGRES_CONFIG)
-    db_service.create_table()
-
+    # Инициализация модели
+    model_path = '/app/model/catboost_model.cbm'
+    categorical_features_path = '/app/model/categorical_features.json'
+    threshold_path = '/app/model/threshold.json'
+    
+    categorical_features = load_categorical_features(categorical_features_path)
+    model = load_model(model_path, categorical_features)
+    threshold = load_threshold(threshold_path)
+    
+    # Создание потребителя и производителя Kafka
     consumer = KafkaConsumer(
-        INPUT_TOPIC,
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        kafka_config['input_topic'],
+        bootstrap_servers=kafka_config['kafka_bootstrap_servers'],
         auto_offset_reset='earliest',
         enable_auto_commit=True,
         group_id='fraud-detector-group'
     )
-    
     producer = KafkaProducer(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        bootstrap_servers=kafka_config['kafka_bootstrap_servers'],
         value_serializer=lambda v: json.dumps(v).encode('utf-8')
     )
-
-    logger.info("Fraud detection service started")
     
-    try:
-        for message in consumer:
-            try:
-                transaction = json.loads(message.value.decode('utf-8'))
-                logger.info(f"Processing transaction: {transaction['transaction_id']}")
-                
-                processed_data = preprocess_data(transaction)
-                score = scorer.predict(processed_data)
-                fraud_flag = score > scorer.threshold
-
-                result = {
-                    "transaction_id": transaction["transaction_id"],
-                    "score": float(score),
-                    "fraud_flag": bool(fraud_flag)
-                }
-
-                producer.send(OUTPUT_TOPIC, value=result)
-                db_service.insert_result(result)
-                
-                logger.info(f"Processed transaction: {transaction['transaction_id']}, score: {score:.4f}, fraud: {fraud_flag}")
-                
-            except Exception as e:
-                logger.error(f"Error processing message: {e}", exc_info=True)
-                
-    except KeyboardInterrupt:
-        logger.info("Shutting down...")
-    finally:
-        consumer.close()
-        producer.close()
-        db_service.conn.close()
-
-if __name__ == "__main__":
-    main()
+    # Основной цикл
+    for message in consumer:
+        try:
+            transaction = json.loads(message.value.decode('utf-8'))
+            # Преобразование в DataFrame
+            df = pd.DataFrame([transaction])
+            processed_df = run_preproc(df)
+            score = model.predict_proba(processed_df)[0][1]
+            fraud_flag = score >= threshold
+            
+            result = {
+                "transaction_id": transaction["transaction_id"],
+                "score": float(score),
+                "fraud_flag": bool(fraud_flag)
+            }
+            producer.send(kafka_config['output_topic'], value=result)
+        except Exception as e:
+            logger.error(f"Ошибка: {e}", exc_info=True)

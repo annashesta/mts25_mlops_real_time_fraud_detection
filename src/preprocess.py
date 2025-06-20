@@ -1,18 +1,39 @@
 """Модуль для предобработки данных перед подачей в модель."""
-
 import logging
 from typing import List
 import pandas as pd
 import numpy as np
 from geopy.distance import great_circle
 from sklearn.impute import SimpleImputer
+import json
 
 # Настройка логгера
 logger = logging.getLogger(__name__)
 
-# Глобальные переменные (будут инициализированы в load_train_data)
+# Глобальные переменные
 categorical_cols: List[str] = []
 continuous_cols: List[str] = ["amount"]
+
+def load_categorical_features(features_path: str) -> List[str]:
+    """
+    Загружает список категориальных признаков из JSON-файла.
+    Args:
+        features_path: Путь к файлу с категориальными признаками.
+    Returns:
+        Список категориальных признаков.
+    Raises:
+        RuntimeError: Если не удалось загрузить список категориальных признаков.
+    """
+    logger.info("Загрузка списка категориальных признаков из %s...", features_path)
+    try:
+        with open(features_path, "r", encoding="utf-8") as f:
+            features_data = json.load(f)
+        categorical_features = features_data.get("categorical_features", [])
+        logger.info("Категориальные признаки: %s", categorical_features)
+        return categorical_features
+    except Exception as e:
+        logger.error("Ошибка загрузки категориальных признаков: %s", str(e))
+        raise RuntimeError(f"Ошибка загрузки категориальных признаков: {str(e)}") from e
 
 def add_time_features(df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -64,7 +85,11 @@ def run_preproc(input_data: dict) -> pd.DataFrame:
     Returns:
         pd.DataFrame: Предобработанный DataFrame.
     """
+    global categorical_cols, continuous_cols
     logger.info("Начало препроцессинга данных...")
+    # Инициализация категориальных признаков
+    if not categorical_cols:
+        categorical_cols = load_categorical_features("/app/model/categorical_features.json")
     # Преобразование входных данных в DataFrame
     input_df = pd.DataFrame([input_data])
     # Проверка наличия необходимых колонок
