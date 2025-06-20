@@ -34,7 +34,7 @@ services:
     networks:
       - app-tier
     volumes:
-      - ./input:/app/input  # Монтирование папки input в контейнер
+      - ./input:/app/input
   postgres:
     image: postgres:13
     environment:
